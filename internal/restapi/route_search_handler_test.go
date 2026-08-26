@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/OneBusAway/go-gtfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"maglev.onebusaway.org/internal/models"
@@ -140,6 +141,37 @@ func TestRouteSearchHandlerLimitExceeded(t *testing.T) {
 
 	assert.True(t, model.Data.LimitExceeded, "limitExceeded should be true when results are truncated")
 	assert.Equal(t, 1, len(model.Data.List), "results should be truncated to maxCount")
+}
+
+// TestRouteSearchHandlerIgnoresRealTimeAlerts verifies that route search stays
+// decoupled from GTFS-RT alerts: a seeded alert informing a returned route must
+// not surface in references.situations.
+//
+// The endpoint is served with the static feed ETag and long cache duration, so
+// its response may only depend on static GTFS data; an alert appearing, changing,
+// or clearing must not invalidate cached responses. Clients that need alerts for
+// searched routes fetch them from real-time endpoints.
+func TestRouteSearchHandlerIgnoresRealTimeAlerts(t *testing.T) {
+	api := createTestApi(t)
+	defer api.Shutdown()
+
+	resp, model := callAPIHandler[RoutesResponse](t, api, routeSearchURL(url.Values{"input": {"shasta"}}))
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NotEmpty(t, model.Data.List)
+
+	rawRouteID, _, err := utils.ExtractAgencyIDAndCodeID(model.Data.List[0].ID)
+	require.NoError(t, err)
+
+	api.GtfsManager.AddAlertForTest(gtfs.Alert{
+		ID:               "route-search-alert",
+		InformedEntities: []gtfs.AlertInformedEntity{{RouteID: &rawRouteID}},
+		Header:           []gtfs.AlertText{{Text: "Route alert", Language: "en"}},
+	})
+
+	respWithAlert, modelWithAlert := callAPIHandler[RoutesResponse](t, api, routeSearchURL(url.Values{"input": {"shasta"}}))
+	require.Equal(t, http.StatusOK, respWithAlert.StatusCode)
+	assert.Empty(t, modelWithAlert.Data.References.Situations,
+		"a route-scoped alert must not leak into this static endpoint's references.situations")
 }
 
 func TestRouteSearchHandlerLimitNotExceeded(t *testing.T) {

@@ -250,7 +250,8 @@ func (api *RestAPI) vehiclesForAgencyHandler(w http.ResponseWriter, r *http.Requ
 			api.collectAlertsForRoutes(routeIDs),
 			api.GtfsManager.GetAlertsByIDs("", "", id),
 		)
-		references.Situations = append(references.Situations, api.BuildSituationReferences(alerts)...)
+		situationRefs := situationRefsFromAlerts(alerts, id)
+		references.Situations = append(references.Situations, api.situationReferences(situationRefs)...)
 	}
 
 	// Spec: this endpoint returns all matching vehicles, so limitExceeded is always false.

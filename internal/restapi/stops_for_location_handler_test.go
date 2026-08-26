@@ -576,20 +576,10 @@ func TestStopsForLocationHandlerWithSituations(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Len(t, model.Data.List, 1)
 
-	// Verify references contain the situation we added
-	refs := model.Data.References
-	require.NotEmpty(t, refs.Situations, "Expected at least one situation to be returned for Stop 2042")
-
-	// Find our specific test alert in the returned situations
-	foundOurAlert := false
-	for _, sit := range refs.Situations {
-		if sit.Description != nil && strings.Contains(sit.Description.Value, "Stop 2042 is closed today") {
-			foundOurAlert = true
-			break
-		}
-	}
-
-	assert.True(t, foundOurAlert, "Expected to find our mock alert in the references.situations")
+	// Stop search is a static endpoint: a stop-scoped alert must not surface in
+	// references.situations, so the response stays independent of real-time data.
+	assert.Empty(t, model.Data.References.Situations,
+		"a stop-scoped alert must not leak into this static endpoint's references.situations")
 }
 
 // Spec extension 8a: includeReferences=false leaves the references block present but empty.
@@ -626,12 +616,13 @@ func TestStopsForLocationHonorsIncludeReferences(t *testing.T) {
 			if tt.expectReferences {
 				assert.NotEmpty(t, refs.Agencies)
 				assert.NotEmpty(t, refs.Routes)
-				assert.NotEmpty(t, refs.Situations)
 			} else {
 				assert.Empty(t, refs.Agencies)
 				assert.Empty(t, refs.Routes)
-				assert.Empty(t, refs.Situations)
 			}
+			// Static endpoint policy: situations stay empty either way, even with
+			// the seeded stop-scoped alert above.
+			assert.Empty(t, refs.Situations)
 		})
 	}
 }

@@ -199,14 +199,16 @@ func TestVehiclesForAgencyHandler_SituationsPopulatedInReferences(t *testing.T) 
 
 	require.NotEmpty(t, model.Data.List, "mock vehicle not returned by VehiclesForAgencyID")
 	require.NotEmpty(t, model.Data.References.Situations, "expected at least one situation in references")
+	// The situation ID should be agency-prefixed: {agencyID}_{alertID}
+	expectedID := testdata.Raba.ID + "_" + alertID
 	found := false
 	for _, sit := range model.Data.References.Situations {
-		if sit.ID == alertID {
+		if sit.ID == expectedID {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "expected situation with id %q in references.situations", alertID)
+	assert.True(t, found, "expected situation with id %q in references.situations", expectedID)
 }
 
 // TestVehiclesForAgencyHandler_AgencySituationsPopulatedInReferences verifies that
@@ -232,14 +234,16 @@ func TestVehiclesForAgencyHandler_AgencySituationsPopulatedInReferences(t *testi
 
 	require.NotEmpty(t, model.Data.List, "mock vehicle not returned by VehiclesForAgencyID")
 	require.NotEmpty(t, model.Data.References.Situations, "expected agency-wide alert in references.situations")
+	// The situation ID should be agency-prefixed: {agencyID}_{alertID}
+	expectedID := agencyID + "_" + alertID
 	found := false
 	for _, sit := range model.Data.References.Situations {
-		if sit.ID == alertID {
+		if sit.ID == expectedID {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "expected situation with id %q in references.situations", alertID)
+	assert.True(t, found, "expected situation with id %q in references.situations", expectedID)
 }
 
 func TestVehiclesForAgencyHandler_RouteIDUsesCombinedID(t *testing.T) {

@@ -106,7 +106,11 @@ func TestRouteHandler_EntityIDWithUnderscores(t *testing.T) {
 }
 
 // TestRouteHandlerWithSituations verifies that a real-time alert informing a
-// route shows up in references.situations for that route's response.
+// route does NOT surface in references.situations for that route's response.
+//
+// Route lookup is a static endpoint served with the static feed ETag and a long
+// cache duration, so its response must depend only on static GTFS data. Clients
+// that need alerts fetch them from real-time endpoints.
 func TestRouteHandlerWithSituations(t *testing.T) {
 	api := createTestApi(t)
 	defer api.Shutdown()
@@ -127,9 +131,8 @@ func TestRouteHandlerWithSituations(t *testing.T) {
 	resp, model := callAPIHandler[RouteEntryResponse](t, api, routeURL(testdata.Route1.ID))
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Len(t, model.Data.References.Situations, 1,
-		"expected exactly one situation matching the seeded alert")
-	assert.Equal(t, alertID, model.Data.References.Situations[0].ID)
+	assert.Empty(t, model.Data.References.Situations,
+		"a route-scoped alert must not leak into this static endpoint's references.situations")
 }
 
 // TestRouteHandler_IncludeReferencesFalse verifies that when includeReferences=false,

@@ -243,12 +243,8 @@ func (api *RestAPI) stopsForLocationHandler(w http.ResponseWriter, r *http.Reque
 			routes = []models.Route{}
 		}
 
-		// Populate situation references for alerts affecting the returned stops
-		alerts := api.collectAlertsForStops(resultRawStopIDs)
-
 		references.Agencies = agencies
 		references.Routes = routes
-		references.Situations = api.BuildSituationReferences(alerts)
 	}
 
 	response := models.NewListResponseWithRange(results, *references, outOfRange, api.Clock, isLimitExceeded)

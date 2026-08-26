@@ -76,6 +76,12 @@ func (api *RestAPI) SetRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v2/metadata.json", CacheControlMiddleware(models.CacheDurationShort, rateLimitAndValidateAPIKey(api, api.metadataHandler)))
 
 	// --- Routes without ID validation ---
+	//
+	// Cache-tier policy (see situation-references-policy.md): endpoints served with
+	// etagStatic and CacheDurationLong must depend only on static GTFS data. Reading
+	// GTFS-RT alerts into references.situations there makes the static ETag lie —
+	// alerts change without moving the ETag, so caches serve stale situations.
+	// Real-time references belong only on short-cache, ETag-free endpoints below.
 	mux.Handle("GET /api/where/agencies-with-coverage.json", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.agenciesWithCoverageHandler))))
 	mux.Handle("GET /api/where/search/stop.json", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.searchStopsHandler))))
 	mux.Handle("GET /api/where/search/route.json", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.routeSearchHandler))))

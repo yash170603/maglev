@@ -69,20 +69,17 @@ func TestRoutesForLocationHandlerIncludeReferences(t *testing.T) {
 }
 
 // TestRoutesForLocationHandlerSituationReferences verifies that a route-scoped
-// alert surfaces as a situation reference — the alert-collection branch feeding
-// data.references.situations had no coverage before this test.
+// alert does NOT surface in references.situations, matching the documented spec:
+// the routes-for-location wiki page states that references.situations is present
+// but empty for this endpoint.
 //
-// This is current maglev behavior, not the documented spec: the routes-for-location
-// wiki page states that references.situations is present but empty for this endpoint,
-// and its Implementation Decisions section has no entry recording a deviation. The
-// population comes from commit 4e09c1c, which added it across all non-trip handlers
-// (route, route-search, stops-search) rather than specifically for this endpoint.
+// Route search is static data served without real-time coupling, so the response
+// must not change when alerts appear, change, or clear.
 func TestRoutesForLocationHandlerSituationReferences(t *testing.T) {
 	api := createTestApi(t)
 
 	// testdata.Route19's combined ID is "25_3779"; GetAlertsForRoute matches on
-	// the raw (un-prefixed) route ID, and BuildSituationReferences keys the
-	// resulting situation by the alert's own ID, not the combined form.
+	// the raw (un-prefixed) route ID.
 	rawRouteID := "3779"
 	api.GtfsManager.AddAlertForTest(gogtfs.Alert{
 		ID:               "test-alert-routes-for-location",
@@ -94,13 +91,10 @@ func TestRoutesForLocationHandlerSituationReferences(t *testing.T) {
 
 	_, model := callAPIHandler[RoutesResponse](t, api, baseURL)
 
-	situationIDs := make([]string, 0, len(model.Data.References.Situations))
-	for _, situation := range model.Data.References.Situations {
-		situationIDs = append(situationIDs, situation.ID)
-	}
-	assert.Contains(t, situationIDs, "test-alert-routes-for-location")
+	assert.Empty(t, model.Data.References.Situations,
+		"a route-scoped alert must not leak into this static endpoint's references.situations")
 
-	// With an alert actually present, includeReferences=false must still suppress it.
+	// includeReferences=false must still suppress the whole references block.
 	_, suppressedModel := callAPIHandler[RoutesResponse](t, api, baseURL+"&includeReferences=false")
 	assert.Empty(t, suppressedModel.Data.References.Situations)
 }

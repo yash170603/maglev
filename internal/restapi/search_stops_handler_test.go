@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OneBusAway/go-gtfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"maglev.onebusaway.org/internal/models"
@@ -328,6 +329,37 @@ func TestSearchStopsHandlerIncludeReferencesFalse(t *testing.T) {
 	assert.Empty(t, stopsResp.Data.References.Routes)
 	assert.Empty(t, stopsResp.Data.References.Situations)
 	assert.Empty(t, stopsResp.Data.References.Stops)
+}
+
+// TestSearchStopsHandlerIgnoresRealTimeAlerts verifies that stop search stays
+// decoupled from GTFS-RT alerts: a seeded alert informing a returned stop must
+// not surface in references.situations.
+//
+// The endpoint is served with the static feed ETag and long cache duration, so
+// its response may only depend on static GTFS data; an alert appearing, changing,
+// or clearing must not invalidate cached responses. Stop autocomplete is memoized
+// by clients as lookup data, so embedded alerts would go stale unnoticed.
+func TestSearchStopsHandlerIgnoresRealTimeAlerts(t *testing.T) {
+	api := createTestApi(t)
+	defer api.Shutdown()
+
+	resp, model := callAPIHandler[StopsResponse](t, api, searchStopsURL(url.Values{"input": {"Buenaventura"}}))
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NotEmpty(t, model.Data.List)
+
+	rawStopID, _, err := utils.ExtractAgencyIDAndCodeID(model.Data.List[0].ID)
+	require.NoError(t, err)
+
+	api.GtfsManager.AddAlertForTest(gtfs.Alert{
+		ID:               "search-stops-alert",
+		InformedEntities: []gtfs.AlertInformedEntity{{StopID: &rawStopID}},
+		Header:           []gtfs.AlertText{{Text: "Stop alert", Language: "en"}},
+	})
+
+	respWithAlert, modelWithAlert := callAPIHandler[StopsResponse](t, api, searchStopsURL(url.Values{"input": {"Buenaventura"}}))
+	require.Equal(t, http.StatusOK, respWithAlert.StatusCode)
+	assert.Empty(t, modelWithAlert.Data.References.Situations,
+		"a stop-scoped alert must not leak into this static endpoint's references.situations")
 }
 
 func TestSearchStopsHandlerLimitExceeded(t *testing.T) {
