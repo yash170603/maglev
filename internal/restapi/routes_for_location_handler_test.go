@@ -68,18 +68,16 @@ func TestRoutesForLocationHandlerIncludeReferences(t *testing.T) {
 	}
 }
 
-// TestRoutesForLocationHandlerSituationReferences verifies that a route-scoped
-// alert does NOT surface in references.situations, matching the documented spec:
-// the routes-for-location wiki page states that references.situations is present
-// but empty for this endpoint.
-//
-// Route search is static data served without real-time coupling, so the response
-// must not change when alerts appear, change, or clear.
-func TestRoutesForLocationHandlerSituationReferences(t *testing.T) {
+// TestRoutesForLocationHandlerSituationReferencesStayEmpty pins the spec's
+// references contract: only agencies is populated. An alert affecting a returned
+// route must not surface here, because route beans carry no situation IDs to
+// resolve — callers wanting alerts fetch them from a route- or trip-scoped
+// endpoint instead.
+func TestRoutesForLocationHandlerSituationReferencesStayEmpty(t *testing.T) {
 	api := createTestApi(t)
 
-	// testdata.Route19's combined ID is "25_3779"; GetAlertsForRoute matches on
-	// the raw (un-prefixed) route ID.
+	// testdata.Route19's combined ID is "25_3779"; alerts are matched on the raw
+	// (un-prefixed) route ID, so this alert does affect a route the search returns.
 	rawRouteID := "3779"
 	api.GtfsManager.AddAlertForTest(gogtfs.Alert{
 		ID:               "test-alert-routes-for-location",
@@ -91,12 +89,11 @@ func TestRoutesForLocationHandlerSituationReferences(t *testing.T) {
 
 	_, model := callAPIHandler[RoutesResponse](t, api, baseURL)
 
-	assert.Empty(t, model.Data.References.Situations,
-		"a route-scoped alert must not leak into this static endpoint's references.situations")
-
-	// includeReferences=false must still suppress the whole references block.
-	_, suppressedModel := callAPIHandler[RoutesResponse](t, api, baseURL+"&includeReferences=false")
-	assert.Empty(t, suppressedModel.Data.References.Situations)
+assert.ElementsMatch(t, []models.Route{testdata.Route19}, model.Data.List,
+		"the alerted route is still returned in the list")
+	assert.Empty(t, model.Data.References.Situations)
+	assert.ElementsMatch(t, []models.AgencyReference{testdata.Raba}, model.Data.References.Agencies,
+		"agencies remain the one populated reference array")
 }
 
 func TestRoutesForLocationQuery(t *testing.T) {

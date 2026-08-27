@@ -77,17 +77,18 @@ func (api *RestAPI) SetRoutes(mux *http.ServeMux) {
 
 	// --- Routes without ID validation ---
 	//
-	// Cache-tier policy (see situation-references-policy.md): endpoints served with
-	// etagStatic and CacheDurationLong must depend only on static GTFS data. Reading
-	// GTFS-RT alerts into references.situations there makes the static ETag lie —
-	// alerts change without moving the ETag, so caches serve stale situations.
-	// Real-time references belong only on short-cache, ETag-free endpoints below.
+	// Situation/cache policy (see situation-references-policy.md): search endpoints
+	// are semantically static lookup data even though several were moved to the
+	// short cache when they still embedded real-time alerts. This PR removes
+	// GTFS-RT alerts from references.situations on the search/lookup endpoints, so
+	// they depend on static GTFS data only and can be cached without staleness.
+	// Real-time references belong only on genuinely real-time endpoints.
 	mux.Handle("GET /api/where/agencies-with-coverage.json", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.agenciesWithCoverageHandler))))
-	mux.Handle("GET /api/where/search/stop.json", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.searchStopsHandler))))
-	mux.Handle("GET /api/where/search/route.json", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.routeSearchHandler))))
 
 	// Non-static endpoints (no ETag)
 	mux.Handle("GET /api/where/current-time.json", CacheControlMiddleware(models.CacheDurationShort, rateLimitAndValidateAPIKey(api, api.currentTimeHandler)))
+	mux.Handle("GET /api/where/search/stop.json", CacheControlMiddleware(models.CacheDurationShort, rateLimitAndValidateAPIKey(api, api.searchStopsHandler)))
+	mux.Handle("GET /api/where/search/route.json", CacheControlMiddleware(models.CacheDurationShort, rateLimitAndValidateAPIKey(api, api.routeSearchHandler)))
 	mux.Handle("GET /api/where/stops-for-location.json", CacheControlMiddleware(models.CacheDurationShort, rateLimitAndValidateAPIKey(api, api.stopsForLocationHandler)))
 	mux.Handle("GET /api/where/routes-for-location.json", CacheControlMiddleware(models.CacheDurationShort, rateLimitAndValidateAPIKey(api, api.routesForLocationHandler)))
 	mux.Handle("GET /api/where/trips-for-location.json", CacheControlMiddleware(models.CacheDurationShort, rateLimitAndValidateAPIKey(api, api.tripsForLocationHandler)))
@@ -105,7 +106,6 @@ func (api *RestAPI) SetRoutes(mux *http.ServeMux) {
 
 	// --- Routes with combined ID validation (agency_id_code format) ---
 	mux.Handle("GET /api/where/trip/{id}", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.tripHandler))))
-	mux.Handle("GET /api/where/route/{id}", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.routeHandler))))
 	mux.Handle("GET /api/where/stop/{id}", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.stopHandler))))
 	mux.Handle("GET /api/where/shape/{id}", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.shapesHandler))))
 	mux.Handle("GET /api/where/stops-for-route/{id}", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.stopsForRouteHandler))))
@@ -114,6 +114,7 @@ func (api *RestAPI) SetRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/where/block/{id}", CacheControlMiddleware(models.CacheDurationLong, rateLimitAndValidateAPIKey(api, etagStatic(api, api.blockHandler))))
 
 	// Real-time or transactional combined ID endpoints (no ETag)
+	mux.Handle("GET /api/where/route/{id}", CacheControlMiddleware(models.CacheDurationShort, rateLimitAndValidateAPIKey(api, api.routeHandler)))
 	mux.Handle("GET /api/where/report-problem-with-trip/{id}", CacheControlMiddleware(models.CacheDurationNone, rateLimitAndValidateAPIKey(api, api.reportProblemWithTripHandler)))
 	mux.Handle("GET /api/where/report-problem-with-stop/{id}", CacheControlMiddleware(models.CacheDurationNone, rateLimitAndValidateAPIKey(api, api.reportProblemWithStopHandler)))
 	mux.Handle("GET /api/where/problem-reports-for-trip/{id}", CacheControlMiddleware(models.CacheDurationNone, rateLimitAndValidateProtectedAPIKey(api, api.problemReportsForTripHandler)))

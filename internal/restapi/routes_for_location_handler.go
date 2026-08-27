@@ -67,6 +67,8 @@ func (api *RestAPI) routesForLocationHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	references := models.NewEmptyReferences()
+	// Only agencies are referenced here: route beans carry no situation IDs, so
+	// references.situations stays empty even when alerts affect the returned routes.
 	// When includeReferences=false the references block is present but empty.
 	if ShouldIncludeReferences(r) {
 		agencyIDList := slices.Collect(maps.Keys(agencyIDs))
