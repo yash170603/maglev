@@ -56,11 +56,13 @@ func TestCacheControlHeaders(t *testing.T) {
 	}
 }
 
-// TestRealtimeEndpointsAreNotCachedAsStatic guards the endpoints that put real-time
-// service alerts in references.situations. The ETag is the static feed's file hash, so
-// serving one alongside alert data hands clients a 304 for as long as the feed is
-// unchanged, however often the alerts move.
-func TestRealtimeEndpointsAreNotCachedAsStatic(t *testing.T) {
+// TestSearchEndpointsAreCachedAsStatic guards the search/lookup endpoints whose
+// references.situations no longer carries real-time service alerts. Their responses
+// are pure functions of static GTFS data plus query parameters, so they may be
+// validated against the static feed ETag and cached on the long tier. Any future
+// re-introduction of GTFS-RT alert data here must also move them back to the short
+// ETag-free tier (see situation-references-policy.md).
+func TestSearchEndpointsAreCachedAsStatic(t *testing.T) {
 	api := createTestApi(t)
 
 	mux := http.NewServeMux()
@@ -74,6 +76,8 @@ func TestRealtimeEndpointsAreNotCachedAsStatic(t *testing.T) {
 	}{
 		{"search stop", "/api/where/search/stop.json?input=Buenaventura&key=TEST"},
 		{"search route", "/api/where/search/route.json?input=Route&key=TEST"},
+		{"stops for location", "/api/where/stops-for-location.json?key=TEST&lat=40.583321&lon=-122.426966"},
+		{"routes for location", "/api/where/routes-for-location.json?key=TEST&lat=40.583321&lon=-122.426966"},
 		{"route", "/api/where/route/25_151.json?key=TEST"},
 	}
 
@@ -83,10 +87,44 @@ func TestRealtimeEndpointsAreNotCachedAsStatic(t *testing.T) {
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
+			assert.NotEmpty(t, resp.Header.Get("ETag"),
+				"%s depends only on static GTFS data and must be validated against the static feed hash", tt.endpoint)
+			assert.Equal(t, "public, max-age=300", resp.Header.Get("Cache-Control"),
+				"%s depends only on static GTFS data and must be cached as static", tt.endpoint)
+		})
+	}
+}
+
+// TestRealtimeEndpointsAreNotCachedAsStatic guards the endpoints that genuinely
+// serve real-time data. The ETag is the static feed's file hash, so serving one
+// alongside real-time data hands clients a 304 for as long as the feed is
+// unchanged, however often the real-time data moves.
+func TestRealtimeEndpointsAreNotCachedAsStatic(t *testing.T) {
+	api := createTestApi(t)
+
+	mux := http.NewServeMux()
+	api.SetRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	endpoints := []struct {
+		name     string
+		endpoint string
+	}{
+		{"vehicles for agency", "/api/where/vehicles-for-agency/40.json?key=TEST"},
+		{"trips for location", "/api/where/trips-for-location.json?key=TEST&lat=40.583321&lon=-122.426966"},
+	}
+
+	for _, tt := range endpoints {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := http.Get(server.URL + tt.endpoint)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
 			assert.Empty(t, resp.Header.Get("ETag"),
-				"%s carries real-time alerts and must not be validated against the static feed hash", tt.endpoint)
+				"%s serves real-time data and must not be validated against the static feed hash", tt.endpoint)
 			assert.Equal(t, "public, max-age=30", resp.Header.Get("Cache-Control"),
-				"%s carries real-time alerts and must not be cached as static", tt.endpoint)
+				"%s serves real-time data and must not be cached as static", tt.endpoint)
 		})
 	}
 }

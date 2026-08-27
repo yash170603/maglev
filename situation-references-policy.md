@@ -36,23 +36,23 @@ endpoints or dedicated alert channels (OBACO / GTFS-RT ServiceAlerts feeds).
 | Endpoint | Responsibility | Situations | Cache tier |
 |---|---|---|---|
 | `agencies-with-coverage` | static | empty | long + static ETag |
-| `search/stop.json` | static (autocomplete) | empty | short (was long+ETag until #1374) |
-| `search/route.json` | static (autocomplete) | empty | short (was long+ETag until #1374) |
+| `search/stop.json` | static (autocomplete) | empty | long + static ETag |
+| `search/route.json` | static (autocomplete) | empty | long + static ETag |
 | `agency/{id}` | static | empty | long + static ETag |
 | `routes-for-agency/{id}` | static | empty | long + static ETag |
 | `route-ids-for-agency/{id}` | static | empty | long + static ETag |
 | `stop-ids-for-agency/{id}` | static | empty | long + static ETag |
 | `stops-for-agency/{id}` | static | empty | long + static ETag |
 | `trip/{id}` | static | empty | long + static ETag |
-| `route/{id}` | static | empty | short (was long+ETag until #1374) |
+| `route/{id}` | static | empty | long + static ETag |
 | `stop/{id}` | static | empty | long + static ETag |
 | `shape/{id}` | static | empty | long + static ETag |
 | `stops-for-route/{id}` | static | empty | long + static ETag |
 | `schedule-for-stop/{id}` | static | empty | long + static ETag |
 | `schedule-for-route/{id}` | static | empty | long + static ETag |
 | `block/{id}` | static | empty | long + static ETag |
-| `stops-for-location` | static (location search) | empty | short |
-| `routes-for-location` | static (location search) | empty | short |
+| `stops-for-location` | static (location search) | empty | long + static ETag |
+| `routes-for-location` | static (location search) | empty | long + static ETag |
 | `current-time` | dynamic, no entities | empty | short |
 | `vehicles-for-agency/{id}` | real-time | populated | short |
 | `trips-for-location` | mixed (active trips) | populated | short |
@@ -72,10 +72,12 @@ PR #1374 worked around the staleness tactically by dropping
 `search/stop.json`, `search/route.json` and `route/{id}` from the static ETag /
 long-cache tier to the short cache while they still embedded GTFS-RT alerts.
 This PR removes the root cause: the coupling itself. With the coupling gone,
-those three are pure functions of static GTFS data again, so restoring them to
-the long + static-ETag tier is a valid follow-up. `stops-for-location` and
-`routes-for-location` are also purely static now; promoting them to the long
-tier is another possible follow-up, not required for correctness.
+those three — and `stops-for-location` / `routes-for-location`, which were
+moved in earlier reviews — are pure functions of static GTFS data, so this PR
+restores all five to the long + static-ETag tier. The cache tier assignments
+are guarded by `TestSearchEndpointsAreCachedAsStatic` in
+`caching_middleware_test.go`; reintroducing alert data on any of them must move
+it back to the short ETag-free tier.
 
 ## Client impact
 
@@ -103,8 +105,7 @@ documents `references.situations` as present-but-empty for these endpoints
 
 ## Follow-up work
 
-- Code: none further required for correctness. Optional: promote
-  stops-for-location / routes-for-location to the long cache tier.
+- Code: none further required for correctness.
 - Spec/wiki: record the policy on each affected endpoint's wiki page
   (Implementation Decisions sections).
 - Clients: no migration needed.

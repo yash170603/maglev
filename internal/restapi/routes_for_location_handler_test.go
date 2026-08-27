@@ -89,7 +89,7 @@ func TestRoutesForLocationHandlerSituationReferencesStayEmpty(t *testing.T) {
 
 	_, model := callAPIHandler[RoutesResponse](t, api, baseURL)
 
-assert.ElementsMatch(t, []models.Route{testdata.Route19}, model.Data.List,
+	assert.ElementsMatch(t, []models.Route{testdata.Route19}, model.Data.List,
 		"the alerted route is still returned in the list")
 	assert.Empty(t, model.Data.References.Situations)
 	assert.ElementsMatch(t, []models.AgencyReference{testdata.Raba}, model.Data.References.Agencies,

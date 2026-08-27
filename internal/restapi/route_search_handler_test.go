@@ -147,10 +147,10 @@ func TestRouteSearchHandlerLimitExceeded(t *testing.T) {
 // decoupled from GTFS-RT alerts: a seeded alert informing a returned route must
 // not surface in references.situations.
 //
-// The endpoint is served with the static feed ETag and long cache duration, so
-// its response may only depend on static GTFS data; an alert appearing, changing,
-// or clearing must not invalidate cached responses. Clients that need alerts for
-// searched routes fetch them from real-time endpoints.
+// The endpoint is served with the static feed ETag and long cache duration (see
+// routes.go), so its response may only depend on static GTFS data; an alert
+// appearing, changing, or clearing must not invalidate cached responses. Clients
+// that need alerts for searched routes fetch them from real-time endpoints.
 func TestRouteSearchHandlerIgnoresRealTimeAlerts(t *testing.T) {
 	api := createTestApi(t)
 	defer api.Shutdown()
@@ -159,7 +159,9 @@ func TestRouteSearchHandlerIgnoresRealTimeAlerts(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NotEmpty(t, model.Data.List)
 
-	rawRouteID, _, err := utils.ExtractAgencyIDAndCodeID(model.Data.List[0].ID)
+	// Alerts are matched on the raw (un-prefixed) route ID, which is the second
+	// return value of ExtractAgencyIDAndCodeID.
+	_, rawRouteID, err := utils.ExtractAgencyIDAndCodeID(model.Data.List[0].ID)
 	require.NoError(t, err)
 
 	api.GtfsManager.AddAlertForTest(gtfs.Alert{

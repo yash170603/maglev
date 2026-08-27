@@ -108,8 +108,8 @@ func TestRouteHandler_EntityIDWithUnderscores(t *testing.T) {
 // TestRouteHandlerWithSituations verifies that a real-time alert informing a
 // route does NOT surface in references.situations for that route's response.
 //
-// Route lookup is a static endpoint served with the static feed ETag and a long
-// cache duration, so its response must depend only on static GTFS data. Clients
+// Route lookup is served under the static feed ETag with the long cache tier
+// (see routes.go), so its response must depend only on static GTFS data. Clients
 // that need alerts fetch them from real-time endpoints.
 func TestRouteHandlerWithSituations(t *testing.T) {
 	api := createTestApi(t)
